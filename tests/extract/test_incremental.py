@@ -3576,15 +3576,35 @@ def _resource_for_table_hint(
 
     return some_data(updated_at=override_arg)
 
+
 @pytest.mark.parametrize(
     "hint_type", ["default_arg", "explicit_arg", "apply_hints", "default_arg_override"]
 )
+@pytest.mark.parametrize(
+    "incremental_settings",
+    [
+        {
+            "last_value_func": "min",
+            "row_order": "desc",
+            "on_cursor_value_missing": "include",
+        },
+        {"last_value_func": "max", "on_cursor_value_missing": "raise"},
+    ],
+)
 def test_incremental_table_hint_datetime_column(
-    hint_type: Literal["default_arg", "explicit_arg", "default_arg_override", "apply_hints",]
+    hint_type: Literal[
+        "default_arg",
+        "explicit_arg",
+        "default_arg_override",
+        "apply_hints",
+    ],
+    incremental_settings: Dict[str, Any],
 ) -> None:
     initial_value_override = pendulum.now()
     initial_value_default = pendulum.now().subtract(seconds=10)
-    initial_value_in_hint = (initial_value_default if hint_type == "default_arg" else initial_value_override).isoformat()
+    initial_value_in_hint = (
+        initial_value_default if hint_type == "default_arg" else initial_value_override
+    ).isoformat()
     rs = _resource_for_table_hint(
         hint_type,
         [{"updated_at": pendulum.now().add(seconds=i)} for i in range(1, 12)],
@@ -3597,11 +3617,14 @@ def test_incremental_table_hint_datetime_column(
 
     table_schema = pipeline.default_schema.tables["some_data"]
 
-    assert table_schema['incremental'] == {
+    expected = {
         "cursor_path": "updated_at",
         "allow_external_schedulers": False,
         "initial_value": initial_value_in_hint,
-        "last_value_func": "max",
-        "on_cursor_value_missing": "raise"
-
+        "last_value_func": incremental_settings["last_value_func"],
+        "on_cursor_value_missing": incremental_settings["on_cursor_value_missing"],
     }
+    if incremental_settings.get('row_order'):
+        expected['row_order'] = incremental_settings['row_order']
+
+    assert table_schema["incremental"] == expected

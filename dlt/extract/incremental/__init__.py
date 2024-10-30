@@ -124,7 +124,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self,
         cursor_path: str = None,
         initial_value: Optional[TCursorValue] = None,
-        last_value_func: Optional[Union[LastValueFunc[TCursorValue], Literal['min', 'max']]] = max,
+        last_value_func: Optional[Union[LastValueFunc[TCursorValue], Literal["min", "max"]]] = max,
         primary_key: Optional[TTableHintTemplate[TColumnNames]] = None,
         end_value: Optional[TCursorValue] = None,
         row_order: Optional[TSortOrder] = None,
@@ -142,7 +142,10 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             elif last_value_func == "max":
                 last_value_func = max
             else:
-                raise ValueError(f"Unknown last_value_func '{last_value_func}' passed as string. Provide a callable to use a custom function.")
+                raise ValueError(
+                    f"Unknown last_value_func '{last_value_func}' passed as string. Provide a"
+                    " callable to use a custom function."
+                )
         self.last_value_func = last_value_func
         self.initial_value = initial_value
         """Initial value of last_value"""
