@@ -1,6 +1,6 @@
 import os
 from datetime import datetime  # noqa: I251
-from typing import Generic, ClassVar, Any, Optional, Type, Dict, Union
+from typing import Generic, ClassVar, Any, Optional, Type, Dict, Union, Literal
 from typing_extensions import get_args
 
 import inspect
@@ -19,8 +19,8 @@ from dlt.common.typing import (
     get_generic_type_argument_from_instance,
     is_optional_type,
     is_subclass,
+    TColumnNames,
 )
-from dlt.common.schema.typing import TColumnNames
 from dlt.common.configuration import configspec, ConfigurationValueError
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.pipeline import resource_state
@@ -29,17 +29,19 @@ from dlt.common.data_types.type_helpers import (
     coerce_value,
     py_type_to_sc_type,
 )
+from dlt.common.utils import without_none
 
 from dlt.extract.exceptions import IncrementalUnboundError
 from dlt.extract.incremental.exceptions import (
     IncrementalCursorPathMissing,
     IncrementalPrimaryKeyMissing,
 )
-from dlt.extract.incremental.typing import (
+from dlt.common.incremental.typing import (
     IncrementalColumnState,
     TCursorValue,
     LastValueFunc,
     OnCursorValueMissing,
+    IncrementalArgs,
 )
 from dlt.extract.items import SupportsPipe, TTableHintTemplate, ItemTransform
 from dlt.extract.incremental.transform import (
@@ -122,7 +124,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self,
         cursor_path: str = None,
         initial_value: Optional[TCursorValue] = None,
-        last_value_func: Optional[LastValueFunc[TCursorValue]] = max,
+        last_value_func: Optional[Union[LastValueFunc[TCursorValue], Literal['min', 'max']]] = max,
         primary_key: Optional[TTableHintTemplate[TColumnNames]] = None,
         end_value: Optional[TCursorValue] = None,
         row_order: Optional[TSortOrder] = None,
@@ -134,6 +136,13 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         if cursor_path:
             compile_path(cursor_path)
         self.cursor_path = cursor_path
+        if isinstance(last_value_func, str):
+            if last_value_func == "min":
+                last_value_func = min
+            elif last_value_func == "max":
+                last_value_func = max
+            else:
+                raise ValueError(f"Unknown last_value_func '{last_value_func}' passed as string. Provide a callable to use a custom function.")
         self.last_value_func = last_value_func
         self.initial_value = initial_value
         """Initial value of last_value"""
@@ -164,6 +173,17 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self._transformers: Dict[str, IncrementalTransform] = {}
         self._bound_pipe: SupportsPipe = None
         """Bound pipe"""
+
+    def to_table_hint(self) -> Optional[IncrementalArgs]:
+        """Table hint is only returned when all properties are serializable"""
+        if self.last_value_func not in (min, max):
+            logger.warning(
+                "Custom last_value_func %s is not serializable. Incremental hint will not be saved"
+                " in schema.",
+                self.last_value_func,
+            )
+            return None
+        return without_none(dict(self, last_value_func=self.last_value_func.__name__))  # type: ignore[return-value]
 
     @property
     def primary_key(self) -> Optional[TTableHintTemplate[TColumnNames]]:

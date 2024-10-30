@@ -5,7 +5,7 @@ import random
 from datetime import datetime, date  # noqa: I251
 from itertools import chain, count
 from time import sleep
-from typing import Any, Optional
+from typing import Any, Optional, Literal, Sequence, Dict
 from unittest import mock
 
 import duckdb
@@ -3539,3 +3539,69 @@ def test_apply_lag() -> None:
     assert apply_lag(2, 0, 1, max) == 0
     assert apply_lag(1, 2, 1, min) == 2
     assert apply_lag(2, 2, 1, min) == 2
+
+
+def _resource_for_table_hint(
+    hint_type: Literal["default_arg", "explicit_arg", "apply_hints", "default_arg_override"],
+    data: Sequence[Dict[str, Any]],
+    incremental_arg: dlt.sources.incremental[Any],
+    incremental_arg_default: dlt.sources.incremental[Any] = None,
+) -> DltResource:
+    if incremental_arg is None and incremental_arg_default is None:
+        raise ValueError("One of the incremental arguments must be provided.")
+
+    if hint_type == "default_arg":
+        default_arg = incremental_arg_default
+        override_arg = None
+    elif hint_type == "default_arg_override":
+        default_arg = incremental_arg_default
+        override_arg = incremental_arg
+    else:
+        default_arg = None
+        override_arg = incremental_arg
+
+    @dlt.resource
+    def some_data(
+        updated_at: dlt.sources.incremental[Any] = default_arg,
+    ) -> Any:
+        yield data_to_item_format("object", data)
+
+    if override_arg is None:
+        return some_data()
+
+    if hint_type == "apply_hints":
+        rs = some_data()
+        rs.apply_hints(incremental=override_arg)
+        return rs
+
+    return some_data(updated_at=override_arg)
+
+@pytest.mark.parametrize(
+    "hint_type", ["default_arg", "explicit_arg", "apply_hints", "default_arg_override"]
+)
+def test_incremental_table_hint_datetime_column(
+    hint_type: Literal["default_arg", "explicit_arg", "default_arg_override", "apply_hints",]
+) -> None:
+    initial_value_override = pendulum.now()
+    initial_value_default = pendulum.now().subtract(seconds=10)
+    initial_value_in_hint = (initial_value_default if hint_type == "default_arg" else initial_value_override).isoformat()
+    rs = _resource_for_table_hint(
+        hint_type,
+        [{"updated_at": pendulum.now().add(seconds=i)} for i in range(1, 12)],
+        dlt.sources.incremental("updated_at", initial_value=initial_value_override),
+        dlt.sources.incremental("updated_at", initial_value=initial_value_default),
+    )
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id())
+    pipeline.extract(rs)
+
+    table_schema = pipeline.default_schema.tables["some_data"]
+
+    assert table_schema['incremental'] == {
+        "cursor_path": "updated_at",
+        "allow_external_schedulers": False,
+        "initial_value": initial_value_in_hint,
+        "last_value_func": "max",
+        "on_cursor_value_missing": "raise"
+
+    }

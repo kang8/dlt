@@ -32,7 +32,6 @@ from dlt.common.reflection.spec import spec_from_signature
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import (
-    TColumnNames,
     TFileFormat,
     TWriteDisposition,
     TWriteDispositionConfig,
@@ -43,7 +42,8 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
-from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
+from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems, TColumnNames
+
 from dlt.common.utils import get_callable_name, get_module_name, is_inner_callable
 
 from dlt.extract.hints import make_hints
