@@ -1468,10 +1468,13 @@ def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
     data = [{"created_at": 1}, {"created_at": 2}, {"created_at": 3}]
     source_items = data_to_item_format(item_type, data)
 
+    should_have_arg = True
+
     @dlt.resource
     def some_data(created_at: Optional[dlt.sources.incremental[int]] = None):
         # make sure that incremental from apply_hints is here
-        if created_at is not None:
+        if should_have_arg:
+            assert created_at is not None
             assert created_at.cursor_path == "created_at"
             assert created_at.last_value_func is max
         yield source_items
@@ -1505,6 +1508,7 @@ def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
     assert list(r) == []
 
     # remove incremental
+    should_have_arg = False
     r.apply_hints(incremental=dlt.sources.incremental.EMPTY)
     assert r.incremental is not None
     assert r.incremental.incremental is None
@@ -1515,6 +1519,7 @@ def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
 
     # as above but we provide explicit incremental when creating resource
     p = p.drop()
+    should_have_arg = True
     r = some_data(created_at=dlt.sources.incremental("created_at", last_value_func=min))
     # hints have precedence, as expected
     r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
@@ -3624,7 +3629,7 @@ def test_incremental_table_hint_datetime_column(
         "last_value_func": incremental_settings["last_value_func"],
         "on_cursor_value_missing": incremental_settings["on_cursor_value_missing"],
     }
-    if incremental_settings.get('row_order'):
-        expected['row_order'] = incremental_settings['row_order']
+    if incremental_settings.get("row_order"):
+        expected["row_order"] = incremental_settings["row_order"]
 
     assert table_schema["incremental"] == expected
