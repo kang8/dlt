@@ -70,6 +70,7 @@ from dlt.extract.source import (
     TSourceFunParams,
 )
 from dlt.extract.resource import DltResource, TUnboundDltResource, TDltResourceImpl
+from dlt.extract.incremental import TIncrementalConfig
 
 
 @configspec
@@ -446,6 +447,7 @@ def resource(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
+    incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
 ) -> TDltResourceImpl: ...
 
@@ -468,6 +470,7 @@ def resource(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
+    incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
 ) -> Callable[[Callable[TResourceFunParams, Any]], TDltResourceImpl]: ...
 
@@ -490,6 +493,7 @@ def resource(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
+    incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     standalone: Literal[True] = True,
 ) -> Callable[
@@ -515,6 +519,7 @@ def resource(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
+    incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
 ) -> TDltResourceImpl: ...
 
@@ -536,6 +541,7 @@ def resource(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
+    incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     standalone: bool = False,
     data_from: TUnboundDltResource = None,
@@ -643,6 +649,8 @@ def resource(
             cast(DltResource, data_from),
             True,
         )
+        if incremental is not None:
+            resource = resource.apply_hints(incremental=incremental)
         # If custom nesting level was specified then
         # we need to add it to table hints so that
         # later in normalizer dlt/common/normalizers/json/relational.py

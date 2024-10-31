@@ -206,7 +206,6 @@ class DltResourceHints:
         if "incremental" in table_template:
             incremental = table_template["incremental"]
             if isinstance(incremental, Incremental):
-                # TODO: method on incremental
                 resolved_template["incremental"] = incremental.to_table_hint()
         table_schema = self._create_table_schema(resolved_template, self.name)
         migrate_complex_types(table_schema, warn=True)

@@ -3613,8 +3613,8 @@ def test_incremental_table_hint_datetime_column(
     rs = _resource_for_table_hint(
         hint_type,
         [{"updated_at": pendulum.now().add(seconds=i)} for i in range(1, 12)],
-        dlt.sources.incremental("updated_at", initial_value=initial_value_override),
-        dlt.sources.incremental("updated_at", initial_value=initial_value_default),
+        dlt.sources.incremental("updated_at", initial_value=initial_value_override, **incremental_settings),
+        dlt.sources.incremental("updated_at", initial_value=initial_value_default, **incremental_settings)
     )
 
     pipeline = dlt.pipeline(pipeline_name=uniq_id())

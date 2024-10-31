@@ -473,7 +473,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                     incremental = new_incremental  # type: ignore
                     if new_incremental:
                         self.add_step(new_incremental)
-
             if incremental:
                 primary_key = table_schema_template.get("primary_key", incremental.primary_key)
                 if primary_key is not None:
@@ -631,6 +630,8 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         sig = inspect.signature(gen)
         if IncrementalResourceWrapper.should_wrap(sig):
             incremental = IncrementalResourceWrapper(self._hints.get("primary_key"))
+            if incr_hint := self._hints.get("incremental"):
+                incremental.set_incremental(incr_hint, from_hints=True)
             incr_f = incremental.wrap(sig, gen)
             self.add_step(incremental)
         else:
@@ -662,6 +663,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         if self._pipe and not self._pipe.is_empty:
             pipe = pipe._clone(new_name=new_name, with_parent=with_parent)
         # incremental and parent are already in the pipe (if any)
+
         r_ = self.__class__(
             pipe,
             self._clone_hints(self._hints),

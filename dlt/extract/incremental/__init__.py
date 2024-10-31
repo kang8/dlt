@@ -562,6 +562,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
 Incremental.EMPTY = Incremental[Any]()
 Incremental.EMPTY.__is_resolved__ = True
 
+TIncrementalConfig = Union[Incremental[Any], IncrementalArgs]
+
 
 class IncrementalResourceWrapper(ItemTransform[TDataItem]):
     placement_affinity: ClassVar[float] = 1  # stick to end
@@ -672,12 +674,14 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
         return self._incremental
 
     def set_incremental(
-        self, incremental: Optional[Incremental[Any]], from_hints: bool = False
+        self, incremental: Optional[TIncrementalConfig], from_hints: bool = False
     ) -> None:
         """Sets the incremental. If incremental was set from_hints, it can only be changed in the same manner"""
         if self._from_hints and not from_hints:
             # do not accept incremental if apply hints were used
             return
+        if incremental is not None and not isinstance(incremental, Incremental):
+            incremental = Incremental(**incremental)  # Create instance from incremental args
         self._from_hints = from_hints
         self._incremental = incremental
 
@@ -716,6 +720,12 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
         return self._incremental(item, meta)
 
 
+def incremental_config_to_instance(cfg: TIncrementalConfig) -> Incremental[Any]:
+    if isinstance(cfg, Incremental):
+        return cfg
+    return Incremental(**cfg)
+
+
 __all__ = [
     "Incremental",
     "IncrementalResourceWrapper",
@@ -723,6 +733,7 @@ __all__ = [
     "IncrementalCursorPathMissing",
     "IncrementalPrimaryKeyMissing",
     "IncrementalUnboundError",
+    "TIncrementalconfig",
     "LastValueFunc",
     "TCursorValue",
 ]
