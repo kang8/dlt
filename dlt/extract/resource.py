@@ -470,9 +470,10 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
 
                 if incremental is None:
                     # if there's no wrapper add incremental as a transform
-                    incremental = new_incremental  # type: ignore
                     if new_incremental:
+                        new_incremental = Incremental.ensure_instance(new_incremental)
                         self.add_step(new_incremental)
+                    incremental = new_incremental  # type: ignore
             if incremental:
                 primary_key = table_schema_template.get("primary_key", incremental.primary_key)
                 if primary_key is not None:
@@ -496,6 +497,15 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         """Binds the parametrized resource to passed arguments. Modifies resource pipe in place. Does not evaluate generators or iterators."""
         if self._args_bound:
             raise TypeError(f"Parametrized resource {self.name} is not callable")
+        if self.incremental:
+            # Inject incremental instance if needed.
+            # E.g. when using positional incremental arg without default and overridden through hints/decorator
+            args, kwargs = IncrementalResourceWrapper.inject_implicit_incremental_arg(
+                self.incremental,
+                inspect.signature(self._pipe.gen),  # type: ignore[arg-type]
+                args,
+                kwargs,
+            )
         orig_gen = self._pipe.gen
         gen = self._pipe.bind_gen(*args, **kwargs)
         if isinstance(gen, DltResource):

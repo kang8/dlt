@@ -1,6 +1,6 @@
 import os
 from datetime import datetime  # noqa: I251
-from typing import Generic, ClassVar, Any, Optional, Type, Dict, Union, Literal
+from typing import Generic, ClassVar, Any, Optional, Type, Dict, Union, Literal, Tuple
 from typing_extensions import get_args
 
 import inspect
@@ -513,6 +513,12 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             and self.start_out_of_range
         )
 
+    @classmethod
+    def ensure_instance(cls, value: "TIncrementalConfig") -> "Incremental[TCursorValue]":
+        if isinstance(value, Incremental):
+            return value
+        return cls(**value)
+
     def __str__(self) -> str:
         return (
             f"Incremental at 0x{id(self):x} for resource {self.resource_name} with cursor path:"
@@ -602,6 +608,28 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
                 incremental_param = p
                 break
         return incremental_param
+
+    @staticmethod
+    def inject_implicit_incremental_arg(
+        incremental: Union[Incremental[Any], "IncrementalResourceWrapper"],
+        sig: inspect.Signature,
+        func_args: Tuple[Any],
+        func_kwargs: Dict[str, Any],
+    ) -> Tuple[Tuple[Any], Dict[str, Any]]:
+        """Inject the incremental instance into function arguments
+        if the function has an incremental argument without default in its signature and it is not already set in the arguments.
+        """
+        if isinstance(incremental, IncrementalResourceWrapper):
+            incremental = incremental.incremental
+            if not incremental:
+                return func_args, func_kwargs
+        incremental_param = IncrementalResourceWrapper.get_incremental_arg(sig)
+        if incremental_param:
+            bound_args = sig.bind_partial(*func_args, **func_kwargs)
+            if incremental_param.name not in bound_args.arguments:
+                bound_args.arguments[incremental_param.name] = incremental
+                return bound_args.args, bound_args.kwargs
+        return func_args, func_kwargs
 
     def wrap(self, sig: inspect.Signature, func: TFun) -> TFun:
         """Wrap the callable to inject an `Incremental` object configured for the resource."""

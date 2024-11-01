@@ -3613,8 +3613,12 @@ def test_incremental_table_hint_datetime_column(
     rs = _resource_for_table_hint(
         hint_type,
         [{"updated_at": pendulum.now().add(seconds=i)} for i in range(1, 12)],
-        dlt.sources.incremental("updated_at", initial_value=initial_value_override, **incremental_settings),
-        dlt.sources.incremental("updated_at", initial_value=initial_value_default, **incremental_settings)
+        dlt.sources.incremental(
+            "updated_at", initial_value=initial_value_override, **incremental_settings
+        ),
+        dlt.sources.incremental(
+            "updated_at", initial_value=initial_value_default, **incremental_settings
+        ),
     )
 
     pipeline = dlt.pipeline(pipeline_name=uniq_id())
@@ -3633,3 +3637,81 @@ def test_incremental_table_hint_datetime_column(
         expected["row_order"] = incremental_settings["row_order"]
 
     assert table_schema["incremental"] == expected
+
+
+def incremental_instance_or_dict(use_dict: bool, **kwargs):
+    if use_dict:
+        return kwargs
+    return dlt.sources.incremental(**kwargs)
+
+
+@pytest.mark.parametrize("use_dict", [True, False])
+def test_incremental_in_resource_decorator(use_dict: bool) -> None:
+    @dlt.resource(
+        incremental=incremental_instance_or_dict(
+            use_dict, cursor_path="value", initial_value=5, last_value_func=min
+        )
+    )
+    def with_required_incremental_arg(incremental: dlt.sources.incremental[int]):
+        assert incremental.last_value == 5
+        yield [{"value": i} for i in range(10)]
+
+    # Don't pass the argument
+    result = list(with_required_incremental_arg())
+    assert result == [{"value": i} for i in range(0, 6)]
+
+    result = list(with_required_incremental_arg(incremental=None))
+    assert result == [{"value": i} for i in range(0, 6)]
+
+    @dlt.resource(
+        incremental=incremental_instance_or_dict(
+            use_dict, cursor_path="value", initial_value=5, last_value_func=min
+        )
+    )
+    def no_incremental_arg():
+        yield [{"value": i} for i in range(10)]
+
+    result = list(no_incremental_arg())
+    assert result == [{"value": i} for i in range(0, 6)]
+
+    @dlt.resource(
+        incremental=incremental_instance_or_dict(
+            use_dict, cursor_path="value", initial_value=5, last_value_func=min
+        )
+    )
+    def with_optional_incremental_arg(incremental: Optional[dlt.sources.incremental[int]] = None):
+        assert incremental is not None
+        yield [{"value": i} for i in range(10)]
+
+    result = list(with_optional_incremental_arg())
+    assert result == [{"value": i} for i in range(0, 6)]
+
+
+@pytest.mark.parametrize("use_dict", [True, False])
+def test_incremental_in_resource_decorator_default_arg(use_dict: bool) -> None:
+    @dlt.resource(
+        incremental=incremental_instance_or_dict(
+            use_dict, cursor_path="value", initial_value=5, last_value_func=min
+        )
+    )
+    def with_default_incremental_arg(
+        incremental: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "value", initial_value=0, last_value_func=min
+        )
+    ):
+        assert incremental.last_value == 5
+        yield [{"value": i} for i in range(10)]
+
+    # Try override the default arg
+    result = list(
+        with_default_incremental_arg(
+            incremental=dlt.sources.incremental("value", initial_value=5, last_value_func=max)
+        )
+    )
+    assert result == [{"value": i} for i in range(5, 10)]
+
+    # Decorator param overrides function default arg
+    result = list(with_default_incremental_arg())
+    assert result == [{"value": i} for i in range(0, 6)]
+
+
